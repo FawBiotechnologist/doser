@@ -8,7 +8,6 @@ import static org.mockito.Mockito.*;
 import edu.iis.mto.testreactor.doser.infuser.Infuser;
 import edu.iis.mto.testreactor.doser.infuser.InfuserException;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -26,17 +25,17 @@ class MedicineDoserTest {
 	private DosageLog dosageLogMock;
 	@Mock
 	private Clock clockMock;
-	private MedicineDoser medicineDoserToTest;
-	private Capacity defaultCapacity = Capacity.of(100, CapacityUnit.MILILITER);
-	private Capacity tenthOfDefaultCapacity = Capacity.of(10, CapacityUnit.MILILITER);
-	private Dose defaultDose = Dose.of(tenthOfDefaultCapacity, Period.of(1, TimeUnit.HOURS));
-	private Medicine defaultMedicine = Medicine.of("default medicine");
-	private MedicinePackage defaultMedicinePackage = MedicinePackage.of(defaultMedicine, defaultCapacity);
-	private Receipe defaultReceipe = Receipe.of(defaultMedicine, defaultDose, 3);
+	private MedicineDoser medicineDoser;
+	private final Capacity defaultCapacity = Capacity.of(100, CapacityUnit.MILILITER);
+	private final Capacity tenthOfDefaultCapacity = Capacity.of(10, CapacityUnit.MILILITER);
+	private final Dose defaultDose = Dose.of(tenthOfDefaultCapacity, Period.of(1, TimeUnit.HOURS));
+	private final Medicine defaultMedicine = Medicine.of("default medicine");
+	private final MedicinePackage defaultMedicinePackage = MedicinePackage.of(defaultMedicine, defaultCapacity);
+	private final Receipe defaultReceipe = Receipe.of(defaultMedicine, defaultDose, 3);
 
 	@BeforeEach
 	void setUp() {
-		medicineDoserToTest = new MedicineDoser(infuserMock, dosageLogMock, clockMock);
+		medicineDoser = new MedicineDoser(infuserMock, dosageLogMock, clockMock);
 	}
 
 	@Test
@@ -46,30 +45,30 @@ class MedicineDoserTest {
 
 	@Test
 	void successfulRunWithNoErrors() {
-		medicineDoserToTest.add(defaultMedicinePackage);
-		DosingResult dosingResult = medicineDoserToTest.dose(defaultReceipe);
+		medicineDoser.add(defaultMedicinePackage);
+		DosingResult dosingResult = medicineDoser.dose(defaultReceipe);
 		assertEquals(DosingResult.SUCCESS, dosingResult);
 	}
 
 	@Test
 	void incorrectRecipeWrongNumberExpectingIllegalArgumentException() {
-		medicineDoserToTest.add(defaultMedicinePackage);
+		medicineDoser.add(defaultMedicinePackage);
 		Receipe incorrectReceipeWrongNumber = Receipe.of(defaultMedicine, defaultDose, 0);
-		assertThrows(IllegalArgumentException.class, () -> medicineDoserToTest.dose(incorrectReceipeWrongNumber));
+		assertThrows(IllegalArgumentException.class, () -> medicineDoser.dose(incorrectReceipeWrongNumber));
 	}
 
 	@Test
 	void incorrectRecipeWrongDoseExpectingInsufficient() {
-		medicineDoserToTest.add(defaultMedicinePackage);
+		medicineDoser.add(defaultMedicinePackage);
 		Receipe incorrectReceipeNotEnoughMedicine = Receipe.of(defaultMedicine, defaultDose, 11);
-		assertThrows(InsufficientMedicineException.class, () -> medicineDoserToTest.dose(incorrectReceipeNotEnoughMedicine));
+		assertThrows(InsufficientMedicineException.class, () -> medicineDoser.dose(incorrectReceipeNotEnoughMedicine));
 	}
 
 	@Test
 	void incorrectRecipeWrongMedicineExpectingUnavailableMedicineException() {
-		medicineDoserToTest.add(defaultMedicinePackage);
+		medicineDoser.add(defaultMedicinePackage);
 		Receipe incorrectReceipeUnavailableMedicine = Receipe.of(Medicine.of("UNAVAILABLE_MEDICINE"), defaultDose, 1);
-		assertThrows(UnavailableMedicineException.class, () -> medicineDoserToTest.dose(incorrectReceipeUnavailableMedicine));
+		assertThrows(UnavailableMedicineException.class, () -> medicineDoser.dose(incorrectReceipeUnavailableMedicine));
 	}
 
 	@Test
@@ -77,8 +76,8 @@ class MedicineDoserTest {
 		//ten test próbuje przetestowac linijki 38-40 nie mam innego pomyslu jak wyrzucic tam
 		//exception
 		doThrow(NullPointerException.class).when(dosageLogMock).logStart();
-		medicineDoserToTest.add(defaultMedicinePackage);
-		DosingResult dosingResult = medicineDoserToTest.dose(defaultReceipe);
+		medicineDoser.add(defaultMedicinePackage);
+		DosingResult dosingResult = medicineDoser.dose(defaultReceipe);
 		assertEquals(DosingResult.ERROR, dosingResult);
 	}
 
@@ -86,25 +85,25 @@ class MedicineDoserTest {
 	void infuserExceptionExpectingLogDiffuserErrorToBeCalled() throws InfuserException {
 		doThrow(InfuserException.class).when(infuserMock).dispense(any(), any());
 		InOrder order = Mockito.inOrder(dosageLogMock);
-		medicineDoserToTest.add(defaultMedicinePackage);
-		medicineDoserToTest.dose(defaultReceipe);
+		medicineDoser.add(defaultMedicinePackage);
+		medicineDoser.dose(defaultReceipe);
 		order.verify(dosageLogMock).logStart();
-		order.verify(dosageLogMock).logStartDose(any(),any());
-		order.verify(dosageLogMock).logDifuserError(any(),any());
+		order.verify(dosageLogMock).logStartDose(any(), any());
+		order.verify(dosageLogMock).logDifuserError(any(), any());
 	}
 
 	@Test
 	void clockShouldBeCalledThreeTimes() {
-		medicineDoserToTest.add(defaultMedicinePackage);
-		medicineDoserToTest.dose(defaultReceipe);
-		verify(clockMock,times(defaultReceipe.getNumber())).wait((defaultReceipe.getDose().getPeriod()));
+		medicineDoser.add(defaultMedicinePackage);
+		medicineDoser.dose(defaultReceipe);
+		verify(clockMock, times(defaultReceipe.getNumber())).wait((defaultReceipe.getDose().getPeriod()));
 	}
 
 	@Test
 	void orderOfCallsInSuccessfulRun() throws InfuserException {
-		InOrder order = Mockito.inOrder(dosageLogMock,infuserMock,clockMock);
-		medicineDoserToTest.add(defaultMedicinePackage);
-		medicineDoserToTest.dose(defaultReceipe);
+		InOrder order = Mockito.inOrder(dosageLogMock, infuserMock, clockMock);
+		medicineDoser.add(defaultMedicinePackage);
+		medicineDoser.dose(defaultReceipe);
 		order.verify(dosageLogMock).logStart();
 		for (int i = 0; i < defaultReceipe.getNumber(); i++) {
 			order.verify(dosageLogMock).logStartDose(any(), any());
